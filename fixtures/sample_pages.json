@@ -1,0 +1,28 @@
+{
+  "source": "example.pdf",
+  "backend": "example",
+  "pipeline": "PaddleOCR-VL-1.6",
+  "notes": ["手工构造的样例：cp 到 work/pages.json 后可直接 ./run.sh clean，无需 GPU"],
+  "pages": [
+    {
+      "page": 1,
+      "blocks": [
+        {"label": "header", "content": "人文丛书·第三辑", "order": 0},
+        {"label": "doc_title", "content": "中国近世思想史讲义", "order": 1},
+        {"label": "text", "content": "第一章 绪论", "order": 2},
+        {"label": "text", "content": "本章讨论材料与方法。扫描件常把一个自然段\n按视觉行切断，这里应被拼回一整段。", "order": 3},
+        {"label": "footnote", "content": "① 参见某书卷三，页十二。", "order": 4},
+        {"label": "page_number", "content": "1", "order": 99}
+      ]
+    },
+    {
+      "page": 2,
+      "blocks": [
+        {"label": "header", "content": "人文丛书·第三辑", "order": 0},
+        {"label": "paragraph_title", "content": "一、史料的范围", "order": 1},
+        {"label": "text", "content": "凡official文书与私人文集，皆在考察之列。", "order": 2},
+        {"label": "page_number", "content": "2", "order": 99}
+      ]
+    }
+  ]
+}

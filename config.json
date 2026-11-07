@@ -1,0 +1,38 @@
+{
+  "pipeline": "PaddleOCR-VL-1.6",
+  "pipeline_version": "v1.6",
+  "device": "cpu",
+  "python_index_gpu": "https://www.paddlepaddle.org.cn/packages/stable/cu126/",
+  "python_index_cpu": "https://www.paddlepaddle.org.cn/packages/stable/cpu/",
+  "paddle_version": "3.2.1",
+  "paddleocr_spec": "paddleocr[doc-parser]>=3.6.0",
+  "safetensors_wheel_win": "https://xly-devops.cdn.bcebos.com/safetensors-nightly/safetensors-0.6.2.dev0-cp38-abi3-win_amd64.whl",
+  "_safetensors_note": "PaddleOCR-VL 1.6 需要配套 safetensors；Windows 必须装这个 nightly wheel，否则产线初始化失败。",
+
+  "drop_labels": [
+    "header", "footer", "page_header", "page_footer",
+    "page_number", "number", "header_text", "footer_text"
+  ],
+  "_keep_note": "footnote / note / caption 默认保留：人文书的注释常常就是正文的一部分，别当页脚误杀。",
+  "drop_tables": true,
+  "drop_standalone_numbers": true,
+
+  "repeated_header_ratio": 0.6,
+  "min_pages_for_auto_detect": 5,
+  "max_header_chars": 40,
+
+  "merge_lines_within_block": true,
+  "render_dpi": 200,
+  "chapter_pattern": "^\\s*(第[一二三四五六七八九十百千零〇0-9]+[章节篇卷回部]|卷[一二三四五六七八九十百零〇0-9]+|Chapter\\s+\\d+|CHAPTER\\s+[IVXLCDM]+|序|自序|前言|后记|跋|附录)",
+  "title_level": {
+    "doc_title": 1,
+    "document_title": 1,
+    "title": 1,
+    "text_title": 1,
+    "paragraph_title": 2,
+    "section_title": 2,
+    "para_title": 2,
+    "heading": 2
+  },
+  "book_title": "扫描书阅读版"
+}

@@ -1,0 +1,8 @@
+# 本 harness 本身零第三方依赖；Paddle 相关依赖由 ./run.sh setup 按官方源安装，
+# 不要直接 pip install -r requirements.txt（paddlepaddle-gpu 必须走飞桨 cu126 源）。
+#
+#   python -m pip install paddlepaddle-gpu==3.2.1 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
+#   python -m pip install -U "paddleocr[doc-parser]>=3.6.0"
+#
+# 可选（仅当你想换成 pandoc 导出更成熟的 EPUB 时，系统级安装）：
+#   pandoc >= 2.x
