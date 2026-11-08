@@ -12,7 +12,9 @@ from .parse import parse_pdf
 from .selftest import run_selftest
 from .util import emit_progress, load_json_any, parse_page_range
 
-ROOT = Path(__file__).resolve().parent.parent
+# PyInstaller frozen 时 ROOT = exe 所在目录，config/work/dist 都落在用户可见处
+ROOT = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
+        else Path(__file__).resolve().parent.parent)
 
 
 def log(*a):
@@ -49,12 +51,28 @@ def _patch_fuse_rms_norm() -> str | None:
     return None
 
 
+def _has_nvidia_gpu() -> bool:
+    """setup 阶段还没装 paddle，只能靠 nvidia-smi 探测硬件决定装哪个 wheel。"""
+    from shutil import which
+
+    if not which("nvidia-smi"):
+        return False
+    try:
+        r = subprocess.run(["nvidia-smi", "-L"], capture_output=True, timeout=10)
+        return r.returncode == 0 and b"GPU" in r.stdout
+    except Exception:
+        return False
+
+
 def cmd_setup(args, cfg) -> dict:
     ver = cfg["paddle_version"]
-    if cfg["device"].lower() == "cpu":
-        pkg, index = f"paddlepaddle=={ver}", cfg["python_index_cpu"]
-    else:
+    dev = str(cfg.get("device", "auto")).lower()
+    use_gpu = dev == "gpu" or (dev == "auto" and _has_nvidia_gpu())
+    if use_gpu:
         pkg, index = f"paddlepaddle-gpu=={ver}", cfg["python_index_gpu"]
+    else:
+        pkg, index = f"paddlepaddle=={ver}", cfg["python_index_cpu"]
+    log(f"[setup] device={dev} -> {'GPU wheel' if use_gpu else 'CPU wheel'}")
     cmds = [
         [sys.executable, "-m", "pip", "install", pkg, "-i", index],
         [sys.executable, "-m", "pip", "install", "-U", cfg["paddleocr_spec"]],
@@ -141,6 +159,8 @@ def main(argv=None) -> int:
     ap.add_argument("--config", help="配置文件路径，默认 ./config.json")
     ap.add_argument("--work", default=str(ROOT / "work"), help="中间产物目录")
     ap.add_argument("--dist", default=str(ROOT / "dist"), help="最终产物目录")
+    ap.add_argument("--device", choices=("auto", "cpu", "gpu"),
+                    help="推理设备，覆盖 config.json 的 device（auto=优先GPU不可用则CPU）")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("setup", help="按 config.json 安装 PaddlePaddle + PaddleOCR")
@@ -168,6 +188,8 @@ def main(argv=None) -> int:
         return 0
 
     cfg = load_cfg(args.config)
+    if args.device:
+        cfg["device"] = args.device
     work, dist = Path(args.work), Path(args.dist)
 
     try:

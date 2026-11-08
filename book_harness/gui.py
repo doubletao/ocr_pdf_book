@@ -14,7 +14,8 @@ from tkinter import filedialog, messagebox, ttk
 
 from .util import get_pdf_page_count, parse_progress
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
+        else Path(__file__).resolve().parent.parent)
 
 # 只把 harness 自己的关键日志喂给界面；paddle 的下载进度/告警刷屏且无用，
 # 全量原始日志仍写进 work/<key>/console.log 供排错
@@ -24,6 +25,10 @@ LOG_KEEP = re.compile(
 MAX_LOG_LINES = 400
 
 QUEUED, RUNNING, DONE, FAILED, STOPPED = "排队中", "处理中", "完成", "失败", "已停止"
+
+# 设备下拉框：显示中文标签，内部值 auto/cpu/gpu 传给子进程 --device
+DEV_LABELS = {"auto": "自动", "cpu": "CPU", "gpu": "GPU"}
+DEV_BY_LABEL = {v: k for k, v in DEV_LABELS.items()}
 
 
 class Task:
@@ -73,9 +78,13 @@ class Worker(threading.Thread):
         dist = ROOT / "dist" / task.key
         work.mkdir(parents=True, exist_ok=True)
 
-        cmd = [sys.executable, "-m", "book_harness.cli",
-               "--work", str(work), "--dist", str(dist),
-               "all", "--pdf", str(task.path), "--title", task.path.stem]
+        # frozen 的 exe 本身就是入口，不能再带 "-m book_harness.cli"
+        base = ([sys.executable] if getattr(sys, "frozen", False)
+                else [sys.executable, "-m", "book_harness.cli"])
+        device = DEV_BY_LABEL.get(self.app.device_var.get(), "auto")
+        cmd = base + ["--device", device,
+                      "--work", str(work), "--dist", str(dist),
+                      "all", "--pdf", str(task.path), "--title", task.path.stem]
         proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, text=True,
                                 encoding="utf-8", errors="replace")
@@ -143,6 +152,8 @@ class App(tk.Tk):
         self.events: queue.Queue = queue.Queue()
         self.current: Task | None = None
         self.stop_all = False
+        self.device_var = tk.StringVar(
+            value=DEV_LABELS.get(self._config_device(), "自动"))
 
         self._build_ui()
         Worker(self).start()
@@ -157,6 +168,10 @@ class App(tk.Tk):
         ttk.Button(bar, text="重新入队", command=self.retry_selected).pack(side="left", padx=(6, 0))
         ttk.Button(bar, text="开始", command=self.start_queue).pack(side="left", padx=(18, 0))
         ttk.Button(bar, text="停止当前", command=self.stop_current).pack(side="left", padx=(6, 0))
+        ttk.Label(bar, text="设备").pack(side="left", padx=(18, 4))
+        ttk.Combobox(bar, textvariable=self.device_var,
+                     values=list(DEV_LABELS.values()), state="readonly",
+                     width=6).pack(side="left")
         ttk.Button(bar, text="打开输出目录", command=self.open_dist).pack(side="right")
 
         cols = ("pages", "progress", "status", "result")
@@ -230,6 +245,14 @@ class App(tk.Tk):
             n += 1
             key = f"{base}_{n}"
         return key
+
+    @staticmethod
+    def _config_device() -> str:
+        try:
+            dev = json.loads((ROOT / "config.json").read_text(encoding="utf-8")).get("device", "auto")
+            return dev if dev in DEV_LABELS else "auto"
+        except Exception:
+            return "auto"
 
     @staticmethod
     def _resume_hint(key: str) -> str:

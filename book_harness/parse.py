@@ -14,13 +14,46 @@ from .util import (
 )
 
 
+def resolve_device(choice: str) -> str:
+    """auto：paddle 为 CUDA 编译版且有可用卡 → gpu，否则回落 cpu。
+
+    CPU 版 wheel（is_compiled_with_cuda 为 False）即使插着 N 卡也只能 cpu；
+    GPU 版 wheel 但无卡 / 探测异常同样回落 cpu。cpu/gpu 为人工强制。
+    """
+    choice = (choice or "auto").lower()
+    if choice in ("cpu", "gpu"):
+        if choice == "gpu":
+            try:
+                import paddle
+
+                if not paddle.device.is_compiled_with_cuda():
+                    raise RuntimeError(
+                        "当前 paddlepaddle 是 CPU 版，无法使用 GPU；"
+                        "请执行 run.cmd setup 安装 GPU 版，或改用 --device cpu"
+                    )
+            except ImportError:
+                pass  # paddle 尚未安装，交给 create_pipeline 报缺依赖
+        return choice
+    try:
+        import paddle
+
+        if (paddle.device.is_compiled_with_cuda()
+                and paddle.device.cuda.device_count() > 0):
+            return "gpu"
+    except Exception:
+        pass
+    return "cpu"
+
+
 def build_pipeline(cfg: dict):
     """优先 PaddleX（产线名带版本），退化到 paddleocr 顶层 PaddleOCRVL。
 
-    device 必须透传：不传时产线默认「有 GPU 用 GPU，否则 CPU」，
-    config.json 的 device 只控制 setup 装哪个包，与此处无关。
+    device 由 config.json / --device 给出（auto|cpu|gpu），
+    auto 在此探测实际可用设备后透传给产线。
     """
-    device = str(cfg.get("device", "cpu")).lower()
+    requested = str(cfg.get("device", "auto")).lower()
+    device = resolve_device(requested)
+    print(f"[parse] device={device} (requested={requested})", file=sys.stderr)
     errors = []
     try:
         from paddlex import create_pipeline

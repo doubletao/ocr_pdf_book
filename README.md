@@ -18,8 +18,8 @@ cd ocr_pdf_book
 # ① 零依赖自测：不需要 GPU、不需要装 Paddle，先验证全链路代码是通的
 run.cmd selftest          # 或 ./run.sh selftest
 
-# ② 装环境（config.json 里 device 已是 cpu；需要 Python 3.9–3.13，
-#    推荐先建 venv：py -3.12 -m venv .venv）
+# ② 装环境（config.json 里 device=auto：有 NVIDIA 卡装 GPU 版，否则 CPU 版；
+#    需要 Python 3.9–3.13，推荐先建 venv：py -3.12 -m venv .venv）
 run.cmd setup
 # 只打印不执行：run.cmd setup --dry-run
 
@@ -33,6 +33,7 @@ type dist\probe_labels.json
 run.cmd all --pdf .\book.pdf
 # 限页试跑：run.cmd all --pdf .\book.pdf --pages 1-20
 # 指定书名：run.cmd all --pdf .\book.pdf --title "书名"
+# 指定设备（覆盖 config）：--device auto|cpu|gpu，默认取 config.json 的 device
 
 # ⑥ 图形界面：多本书排队批量转换（进度 / 日志 / 断点续跑）
 run.cmd gui
@@ -41,11 +42,24 @@ run.cmd gui
 GUI 说明：
 
 - 「添加 PDF…」可多选；「开始」后按队列**串行**处理（CPU 模式并行只会互相抢核）；
+- 「设备」下拉框选 自动 / CPU / GPU（对应 `--device auto|cpu|gpu`），默认读 `config.json`；
 - 每本书独立 `work/<key>/`、`dist/<key>/` 目录，多本书互不覆盖；
 - 表格列显示总页数 / 逐页进度 / 状态 / 结果，底部日志窗口只显示关键行，
   完整输出在 `work/<key>/console.log`；
 - 「停止当前」或直接关窗口，进度已落盘；「重新入队」（或双击该行）续跑，
   不会重跑已完成的页。
+
+**设备选择**（`config.json` 的 `device`，或任意命令的 `--device` 覆盖）：
+
+| 值 | 行为 |
+|---|---|
+| `auto`（默认） | 优先 GPU：paddle 是 CUDA 编译版且探测到可用卡才用 `gpu`，否则回落 `cpu`；`setup` 阶段用 `nvidia-smi` 探测硬件决定装哪个 wheel |
+| `gpu` | 强制 GPU；paddle 是 CPU 版时**立即报错**提示改用 GPU 版或 `--device cpu` |
+| `cpu` | 强制 CPU |
+
+日志会打印 `[parse] device=cpu (requested=auto)` 说明实际生效的设备。
+注意：GPU 推理要求装的是 `paddlepaddle-gpu` wheel（换机器跑 GPU 时重新
+`run.cmd setup` 即可，代码不变）。
 
 **断点续跑**：`parse`/`probe`/`all` 每识别完一页立即原子写入 `work/pages.json`，
 进程中断（Ctrl+C、停止按钮、断电）后重跑同一命令即自动跳过已处理页，
@@ -76,7 +90,8 @@ GUI 说明：
 ## 2. 安装命令原文（setup 实际执行的）
 
 ```bash
-# 无 N 卡（config.json device=cpu）：
+# device=auto：setup 用 nvidia-smi 探测，有 NVIDIA 卡装 GPU 版，否则 CPU 版
+# CPU 版（无 N 卡）：
 python -m pip install paddlepaddle==3.2.1 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
 python -m pip install -U "paddleocr[doc-parser]>=3.6.0"
 # Windows 额外一步（setup 自动执行）：PaddleOCR-VL 1.6 配套 safetensors
