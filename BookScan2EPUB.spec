@@ -8,6 +8,7 @@ hiddenimports = []
 datas += copy_metadata('paddlex')
 datas += copy_metadata('paddleocr')
 datas += copy_metadata('paddlepaddle')
+datas += copy_metadata('paddlepaddle-gpu')
 datas += copy_metadata('aistudio-sdk')
 datas += copy_metadata('chardet')
 datas += copy_metadata('colorlog')
@@ -56,6 +57,8 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('safetensors')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('pypdfium2')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('nvidia')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 

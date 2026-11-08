@@ -18,7 +18,8 @@ def resolve_device(choice: str) -> str:
     """auto：paddle 为 CUDA 编译版且有可用卡 → gpu，否则回落 cpu。
 
     CPU 版 wheel（is_compiled_with_cuda 为 False）即使插着 N 卡也只能 cpu；
-    GPU 版 wheel 但无卡 / 探测异常同样回落 cpu。cpu/gpu 为人工强制。
+    GPU 版 wheel 但无卡 / 探测异常同样回落 cpu（原因打到 stderr）。
+    cpu/gpu 为人工强制。
     """
     choice = (choice or "auto").lower()
     if choice in ("cpu", "gpu"):
@@ -34,15 +35,72 @@ def resolve_device(choice: str) -> str:
             except ImportError:
                 pass  # paddle 尚未安装，交给 create_pipeline 报缺依赖
         return choice
+    # auto：每一步回落都打印原因，避免"静默变 cpu"没法排查
     try:
         import paddle
+    except Exception as e:
+        print(f"[device] auto -> cpu（import paddle 失败: {type(e).__name__}: {e}）",
+              file=sys.stderr, flush=True)
+        return "cpu"
+    try:
+        compiled_gpu = paddle.device.is_compiled_with_cuda()
+    except Exception as e:
+        print(f"[device] auto -> cpu（查询编译类型失败: {type(e).__name__}: {e}）",
+              file=sys.stderr, flush=True)
+        return "cpu"
+    if not compiled_gpu:
+        print("[device] auto -> cpu（当前环境是 paddle CPU 版；"
+              "exe 需在 GPU 机上用 build_exe.bat 重打包，源码需在本机重跑 run.cmd setup）",
+              file=sys.stderr, flush=True)
+        return "cpu"
+    try:
+        n = int(paddle.device.cuda.device_count())
+    except Exception as e:
+        print(f"[device] auto -> cpu（CUDA 设备探测失败: {type(e).__name__}: {e}）",
+              file=sys.stderr, flush=True)
+        return "cpu"
+    if n <= 0:
+        print("[device] auto -> cpu（CUDA 编译版但看不到可用设备）",
+              file=sys.stderr, flush=True)
+        return "cpu"
+    print(f"[device] auto -> gpu（CUDA 设备 {n} 个）", file=sys.stderr, flush=True)
+    return "gpu"
 
-        if (paddle.device.is_compiled_with_cuda()
-                and paddle.device.cuda.device_count() > 0):
-            return "gpu"
+
+def _patch_cuda_probe() -> None:
+    """GPU 版 paddle 在无 NVIDIA 驱动的机器上，CUDA 查询会抛 OSError。
+
+    paddlex 的 is_cuda_available() 只判断「编译带 CUDA」（上游留有
+    TODO: Check runtime availability），于是 device=cpu 时模型构建
+    （SigLIP 查 compute capability，Windows 上本就用不到）也崩。
+    这里把能力探测包成「失败返回 None」，_siglip 据此禁用 SDPA 优化；
+    有卡的机器探测成功，行为不变。须在产线模块首次导入前调用，
+    并替换已 from-import 的旧引用。
+    """
+    try:
+        from paddlex.utils import env
+
+        if getattr(env, "_harness_safe_probe", False):
+            return
+        orig = env.get_gpu_compute_capability
+
+        def safe():
+            try:
+                return orig()
+            except Exception:
+                return None
+
+        env.get_gpu_compute_capability = safe
+        env._harness_safe_probe = True
+        import sys as _sys
+
+        for mod in list(_sys.modules.values()):
+            if mod is not None and getattr(
+                mod, "get_gpu_compute_capability", None
+            ) is orig:
+                mod.get_gpu_compute_capability = safe
     except Exception:
-        pass
-    return "cpu"
+        pass  # paddlex 未安装则无需 patch，后续报缺依赖
 
 
 def build_pipeline(cfg: dict):
@@ -54,6 +112,7 @@ def build_pipeline(cfg: dict):
     requested = str(cfg.get("device", "auto")).lower()
     device = resolve_device(requested)
     print(f"[parse] device={device} (requested={requested})", file=sys.stderr)
+    _patch_cuda_probe()
     errors = []
     try:
         from paddlex import create_pipeline

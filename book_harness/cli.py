@@ -52,16 +52,30 @@ def _patch_fuse_rms_norm() -> str | None:
 
 
 def _has_nvidia_gpu() -> bool:
-    """setup 阶段还没装 paddle，只能靠 nvidia-smi 探测硬件决定装哪个 wheel。"""
+    """setup 阶段还没装 paddle，靠 nvidia-smi 探测硬件决定装哪个 wheel。
+
+    有的驱动把 nvidia-smi 放在 Program Files 下且不入 PATH，
+    which 找不到时再按常见绝对路径找一次。
+    """
     from shutil import which
 
-    if not which("nvidia-smi"):
+    exe = which("nvidia-smi")
+    if not exe:
+        for c in (r"C:\Windows\System32\nvidia-smi.exe",
+                  r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"):
+            if Path(c).is_file():
+                exe = c
+                break
+    if not exe:
+        log("[setup] 未找到 nvidia-smi（PATH 及常见路径均无）-> 判定为无 NVIDIA GPU")
         return False
     try:
-        r = subprocess.run(["nvidia-smi", "-L"], capture_output=True, timeout=10)
-        return r.returncode == 0 and b"GPU" in r.stdout
+        r = subprocess.run([exe, "-L"], capture_output=True, timeout=10)
+        ok = r.returncode == 0 and b"GPU" in r.stdout
     except Exception:
-        return False
+        ok = False
+    log(f"[setup] nvidia-smi -> {'GPU ' + exe if ok else '不可用/无 GPU (' + exe + ')'}")
+    return ok
 
 
 def cmd_setup(args, cfg) -> dict:

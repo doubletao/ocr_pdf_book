@@ -21,15 +21,17 @@ if errorlevel 1 (
 rem paddlex checks deps via importlib.metadata at runtime; frozen builds must
 rem carry every dist-info or create_pipeline fails with DependencyError.
 set "META_ARGS="
-for %%D in (paddlex paddleocr paddlepaddle aistudio-sdk chardet colorlog filelock huggingface-hub modelscope numpy packaging pandas pillow prettytable py-cpuinfo pydantic PyYAML requests ruamel.yaml typing-extensions ujson beautifulsoup4 einops ftfy imagesize Jinja2 latex2mathml lxml opencv-contrib-python openpyxl premailer pyclipper pypdfium2 python-bidi regex safetensors scikit-learn scipy sentencepiece shapely tiktoken tokenizers) do (
+for %%D in (paddlex paddleocr paddlepaddle paddlepaddle-gpu aistudio-sdk chardet colorlog filelock huggingface-hub modelscope numpy packaging pandas pillow prettytable py-cpuinfo pydantic PyYAML requests ruamel.yaml typing-extensions ujson beautifulsoup4 einops ftfy imagesize Jinja2 latex2mathml lxml opencv-contrib-python openpyxl premailer pyclipper pypdfium2 python-bidi regex safetensors scikit-learn scipy sentencepiece shapely tiktoken tokenizers) do (
   set "META_ARGS=!META_ARGS! --copy-metadata %%D"
 )
 
-echo [2/3] Building onedir bundle (5-15 min, paddle is huge)...
+echo [2/3] Building onedir bundle (10-25 min, GPU paddle + nvidia CUDA libs)...
+rem --collect-all nvidia puts site-packages\nvidia under _internal\nvidia, where
+rem paddle's Windows loader expects it via package_dir\..\nvidia (add_dll_directory).
 "%PY%" -m PyInstaller --noconfirm --clean --onedir --console ^
   --name BookScan2EPUB --paths . ^
   --collect-all paddle --collect-all paddlex --collect-all paddleocr ^
-  --collect-all safetensors --collect-all pypdfium2 ^
+  --collect-all safetensors --collect-all pypdfium2 --collect-all nvidia ^
   !META_ARGS! ^
   pack_entry.py
 if errorlevel 1 (
@@ -44,6 +46,8 @@ echo.
 echo ============================================================
 echo  Done: dist\BookScan2EPUB\BookScan2EPUB.exe
 echo  - No args: launches the GUI. CLI args pass through.
+echo  - Ships paddlepaddle-gpu: auto selects GPU when NVIDIA driver is
+echo    present, otherwise falls back to CPU (same exe for both machines).
 echo  - First run downloads models to %%USERPROFILE%%\.paddlex (~1.9GB)
 echo    if not already cached.
 echo ============================================================

@@ -57,9 +57,13 @@ GUI 说明：
 | `gpu` | 强制 GPU；paddle 是 CPU 版时**立即报错**提示改用 GPU 版或 `--device cpu` |
 | `cpu` | 强制 CPU |
 
-日志会打印 `[parse] device=cpu (requested=auto)` 说明实际生效的设备。
+日志会打印 `[parse] device=cpu (requested=auto)` 与
+`[device] auto -> cpu（CUDA 编译版但看不到可用设备）` 说明回落原因。
 注意：GPU 推理要求装的是 `paddlepaddle-gpu` wheel（换机器跑 GPU 时重新
-`run.cmd setup` 即可，代码不变）。
+`run.cmd setup` 即可，代码不变）。GPU 版 wheel 在**没有 NVIDIA 驱动**的
+机器上也能跑（自动回落 CPU）——`parse.py` 的 `_patch_cuda_probe` 把
+paddlex 的「查 GPU 算力」包成失败返回 None，否则它不看驱动直接查 CUDA
+会抛 `CUDA error(35)`；有卡的机器探测成功，GPU 行为不受影响。
 
 **断点续跑**：`parse`/`probe`/`all` 每识别完一页立即原子写入 `work/pages.json`，
 进程中断（Ctrl+C、停止按钮、断电）后重跑同一命令即自动跳过已处理页，
@@ -113,6 +117,24 @@ pb2 用 protobuf 7.36 gencode 生成，运行时留在 6.x 会报
 （PaddlePaddle 没有 cp314 wheel，本机 3.14 装不上，用 `py -3.12 -m venv .venv`
 单独建环境）；1.6 模型卡提示需配套版本的 `safetensors`；
 macOS / 内网机器走官方 Docker（`paddleocr-vl:latest-nvidia-gpu` 或 `-offline` 镜像）。
+
+### 打包 Windows exe（build_exe.bat）
+
+```bash
+# 先确认 venv 里装的是 GPU 版 wheel（决定 exe 能否用 GPU）：
+run.cmd setup --device gpu     # 有卡/无卡机器都能装；装完 is_compiled_with_cuda=True
+build_exe.bat                  # PyInstaller onedir，约 6 分钟
+```
+
+- 产物 `dist\BookScan2EPUB\`（~3.5 GB，含 paddlepaddle-gpu + nvidia CUDA
+  运行库 19 个 DLL），**拷整个文件夹**到目标机器即可；
+- **同一个 exe 两用**：有 NVIDIA 驱动的机器 `auto` 自动走 GPU（4060Ti 实测
+  路径），无卡机器回落 CPU；`--device gpu` 遇无卡立即报错；
+- exe 内 paddle 版本 = **打包时** venv 里的 wheel：CPU wheel 打出的包永远
+  用不了 GPU，要 GPU 就先 `run.cmd setup --device gpu` 再重打包；
+- 无参数启动 GUI，带参数透传 CLI（`BookScan2EPUB.exe probe --pdf ...`）；
+- 模型不进包：首次运行联网下载到 `%USERPROFILE%\.paddlex`（~1.9 GB），
+  离线机可先在有网机下载后整目录拷贝，或设 `PADDLE_PDX_CACHE_HOME` 指向。
 
 ---
 

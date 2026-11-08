@@ -20,7 +20,7 @@ ROOT = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
 # 只把 harness 自己的关键日志喂给界面；paddle 的下载进度/告警刷屏且无用，
 # 全量原始日志仍写进 work/<key>/console.log 供排错
 LOG_KEEP = re.compile(
-    r"^\[(?:parse|clean|epub|probe|harness|setup)\]|^Traceback|^[A-Za-z_]*(?:Error|Exception):"
+    r"^\[(?:parse|clean|epub|probe|harness|setup|device)\]|^Traceback|^[A-Za-z_]*(?:Error|Exception):"
 )
 MAX_LOG_LINES = 400
 
