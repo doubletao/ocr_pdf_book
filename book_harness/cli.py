@@ -29,12 +29,15 @@ def load_cfg(path: str | None) -> dict:
 
 
 def _patch_fuse_rms_norm() -> str | None:
-    """Windows 上 PaddleOCR-VL 报 `fused_rms_norm_ext kernel is not registered` 的兜底。
+    """关闭 PaddleOCR-VL 的 fuse_rms_norm（官方 wheel 缺 `fused_rms_norm_ext`
+    kernel，开着会直接崩：Windows 报 kernel not registered，Linux 段错误）。
 
-    官方 wheel 缺这个 kernel，只能把配置里的开关关掉（对精度无影响，只损失一点性能）。
-    best-effort：找不到目标文件就跳过，不视为错误。
+    对精度无影响，只损失一点性能。best-effort：找不到目标文件就跳过。
+    路径用 sysconfig 解析，venv 下 Windows/Linux 通用。
     """
-    site = Path(sys.prefix) / "Lib" / "site-packages" / "paddlex"
+    import sysconfig
+
+    site = Path(sysconfig.get_path("purelib")) / "paddlex"
     if not site.is_dir():
         return None
     for f in site.rglob("_config.py"):
@@ -103,7 +106,7 @@ def cmd_setup(args, cfg) -> dict:
         log("[setup] " + " ".join(c))
         subprocess.run(c, check=True)
 
-    patched = _patch_fuse_rms_norm() if sys.platform == "win32" else None
+    patched = _patch_fuse_rms_norm()
     if patched:
         log(f"[setup] 已关闭 fuse_rms_norm：{patched}")
     return {"ok": True, "stage": "setup", "executed": True, "fuse_rms_norm_patched": bool(patched)}
