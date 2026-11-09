@@ -2,6 +2,8 @@
   "pipeline": "PaddleOCR-VL-1.6",
   "pipeline_version": "v1.6",
   "device": "auto",
+  "cpu_threads": "auto",
+  "_cpu_threads_note": "CPU 推理线程数。auto=min(10, CPU 核数)；超过核数时 ARM 机（如飞腾）会段错误。",
   "python_index_gpu": "https://www.paddlepaddle.org.cn/packages/stable/cu126/",
   "python_index_cpu": "https://www.paddlepaddle.org.cn/packages/stable/cpu/",
   "paddle_version": "3.2.1",

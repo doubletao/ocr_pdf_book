@@ -196,8 +196,22 @@ def main(argv=None) -> int:
     s = sub.add_parser("clean", help="从 work/pages.json 生成阅读版 Markdown")
     s = sub.add_parser("epub", help="从阅读版 Markdown 生成 EPUB")
     sub.add_parser("gui", help="图形界面：选文件 / 任务队列 / 进度")
+    s = sub.add_parser("batch", help="字符界面批量：扫描 book/ 下全部 PDF，结果写回 book/（无参数启动的默认命令）")
+    s.add_argument("--book-dir", default=str(ROOT / "book"), help="书目录，默认 ./book")
 
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not any(a in sub.choices for a in argv) and not any(a in ("-h", "--help") for a in argv):
+        argv.append("batch")  # 不给子命令就进批量模式
     args = ap.parse_args(argv)
+    if args.cmd == "batch":  # 批量模式自己打印进度，不走 JSON 报告协议
+        from .batch import run_batch
+
+        extra = []
+        if args.config:
+            extra += ["--config", args.config]
+        if args.device:
+            extra += ["--device", args.device]
+        return run_batch(Path(args.book_dir), extra)
     if args.cmd == "gui":  # GUI 自己管事件循环，不走 JSON 报告协议
         from .gui import run_gui
 

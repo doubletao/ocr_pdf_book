@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -103,6 +104,26 @@ def _patch_cuda_probe() -> None:
         pass  # paddlex 未安装则无需 patch，后续报缺依赖
 
 
+def _set_cpu_threads(cfg: dict) -> None:
+    """限制 Paddle Inference 的 CPU 数学库线程数。
+
+    paddlex 默认 10 线程（PADDLE_PDX_CPU_NUM_THREADS），在核数少于 10 的
+    ARM 机（实测飞腾 D2000/8 核）上，内置 OpenBLAS 会在 sgemm 里段错误；
+    不超过核数就正常。config 的 cpu_threads：auto=min(10, 核数)，或正整数。
+    用户已在环境里设置 PADDLE_PDX_CPU_NUM_THREADS 时以环境为准。
+    """
+    if os.environ.get("PADDLE_PDX_CPU_NUM_THREADS"):
+        n = os.environ["PADDLE_PDX_CPU_NUM_THREADS"]
+    else:
+        want = cfg.get("cpu_threads", "auto")
+        if isinstance(want, int) and want >= 1:
+            n = str(want)
+        else:
+            n = str(min(10, os.cpu_count() or 1))
+        os.environ["PADDLE_PDX_CPU_NUM_THREADS"] = n
+    print(f"[parse] cpu_threads={n}", file=sys.stderr)
+
+
 def build_pipeline(cfg: dict):
     """优先 PaddleX（产线名带版本），退化到 paddleocr 顶层 PaddleOCRVL。
 
@@ -113,6 +134,7 @@ def build_pipeline(cfg: dict):
     device = resolve_device(requested)
     print(f"[parse] device={device} (requested={requested})", file=sys.stderr)
     _patch_cuda_probe()
+    _set_cpu_threads(cfg)
     errors = []
     try:
         from paddlex import create_pipeline

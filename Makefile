@@ -2,9 +2,10 @@ PYTHON ?= python3
 PDF    ?= ./book.pdf
 PAGES  ?=
 
-.PHONY: help selftest setup probe parse clean epub all check
+.PHONY: help batch selftest setup probe parse clean epub all check
 
 help:
+	@echo "make batch                     # 扫描 book/ 下全部 PDF，结果写回 book/"
 	@echo "make selftest                  # 零依赖自测"
 	@echo "make setup                     # 安装 PaddlePaddle + PaddleOCR-VL 依赖"
 	@echo "make probe PDF=./book.pdf      # 只跑前 3 页，打印实际 block_label"
@@ -33,3 +34,6 @@ all:
 	./run.sh all --pdf $(PDF) $(if $(PAGES),--pages $(PAGES),)
 
 check: selftest
+
+batch:
+	./run.sh batch
